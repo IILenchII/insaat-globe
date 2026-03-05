@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { useRouter } from "next/navigation";
 
 type Project = {
   slug: string;
@@ -12,8 +13,6 @@ type Project = {
   lon: number;
   status: string;
 };
-
-type Region = "all" | "turkiye" | "gulf";
 
 function latLonToVec3(lat: number, lon: number, radius: number) {
   const phi = (90 - lat) * (Math.PI / 180);
@@ -28,28 +27,27 @@ function latLonToVec3(lat: number, lon: number, radius: number) {
 
 export default function Globe() {
   const mountRef = useRef<HTMLDivElement | null>(null);
+  const router = useRouter();
+
   const hoveredPinRef = useRef<THREE.Mesh | null>(null);
+  const cursorRef = useRef({ x: 0, y: 0 });
 
   const [hovered, setHovered] = useState<Project | null>(null);
-  const [cursor, setCursor] = useState({ x: 0, y: 0 });
-  const [region, setRegion] = useState<Region>("all");
-
-  // region state'i effect içine taşımak için ref
-  const regionRef = useRef<Region>("all");
-  useEffect(() => {
-    regionRef.current = region;
-  }, [region]);
+  const [, forceTick] = useState(0);
 
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
 
-    // --- Scene ---
+    let disposed = false;
+
+    // ---------- Scene ----------
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x05070f);
+
     const radius = 5;
 
-    // --- Camera ---
+    // ---------- Camera ----------
     const camera = new THREE.PerspectiveCamera(
       45,
       mount.clientWidth / mount.clientHeight,
@@ -58,66 +56,52 @@ export default function Globe() {
     );
     camera.position.z = 14;
 
-    // --- Renderer ---
+    // ---------- Renderer ----------
     const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     mount.appendChild(renderer.domElement);
 
-    // --- Lights ---
+    // ---------- Lights ----------
     const dir = new THREE.DirectionalLight(0xffffff, 1.2);
     dir.position.set(10, 10, 10);
     scene.add(dir);
 
-    const ambient = new THREE.AmbientLight(0xffffff, 0.35);
-    scene.add(ambient);
+    const amb = new THREE.AmbientLight(0xffffff, 0.4);
+    scene.add(amb);
 
-    // --- Globe ---
-    const loader = new THREE.TextureLoader();
-    const earthTexture = loader.load("/earth.jpg");
+    // ---------- Globe ----------
+    const textureLoader = new THREE.TextureLoader();
+    const earthTexture = textureLoader.load("/earth.jpg");
 
-    const globeGeometry = new THREE.SphereGeometry(radius, 64, 64);
-    const globeMaterial = new THREE.MeshStandardMaterial({
-      map: earthTexture,
-      roughness: 1,
-      metalness: 0,
-    });
-
+    const globeGeometry = new THREE.SphereGeometry(radius, 40, 40);
+    const globeMaterial = new THREE.MeshStandardMaterial({ map: earthTexture });
     const globe = new THREE.Mesh(globeGeometry, globeMaterial);
-    scene.add(globe);
 
-    // Başlangıç: Türkiye tarafı
+    // Türkiye tarafına yakın başlat
     globe.rotation.y = -0.9;
     globe.rotation.x = 0.2;
 
-    // --- Pins ---
-    const pinGeometry = new THREE.SphereGeometry(0.18, 18, 18);
+    scene.add(globe);
+
+    // ---------- Pins ----------
+    const pinGeometry = new THREE.SphereGeometry(0.18, 16, 16);
     const pins: THREE.Mesh[] = [];
     const pinToProject = new Map<number, Project>();
 
-    // Raycaster
+    // Hover/click için
     const raycaster = new THREE.Raycaster();
-    const mouseNDC = new THREE.Vector2(999, 999);
+    const mouse = new THREE.Vector2(999, 999);
 
     // Drag rotate
     let isDragging = false;
     let lastX = 0;
     let lastY = 0;
+
     const rotateSpeed = 0.005;
+    const autoRotateSpeed = 0.0005;
 
-    // Idle auto rotate
-    const autoRotateSpeed = 0.0008;
-
-    // Smooth rotate target
-    const targetRot = { x: globe.rotation.x, y: globe.rotation.y };
-    const rotLerp = 0.06;
-
-    // Pulse
-    let t = 0;
-
-    let disposed = false;
-
-    // Load projects
+    // Projects fetch
     (async () => {
       try {
         const res = await fetch("/projects.json", { cache: "no-store" });
@@ -137,50 +121,39 @@ export default function Globe() {
           pinToProject.set(pin.id, p);
         }
       } catch (e) {
-        console.error("❌ projects.json fetch error:", e);
+        console.error("projects.json load error:", e);
       }
     })();
 
-    // Region -> target rotation mapping
-    const setTargetForRegion = (r: Region) => {
-      // bunlar “gözle ayarlanmış” değerler. İstersen sonra milimetrik ayar yaparız.
-      if (r === "turkiye") {
-        targetRot.y = -0.9;
-        targetRot.x = 0.2;
-      } else if (r === "gulf") {
-        targetRot.y = -0.35;
-        targetRot.x = 0.15;
-      } else {
-        // all
-        targetRot.y = -0.7;
-        targetRot.x = 0.15;
-      }
+    // ---------- Events ----------
+    const updateMouse = (e: PointerEvent) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      cursorRef.current = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      };
     };
 
-    // pointer events
     const onPointerDown = (e: PointerEvent) => {
       isDragging = true;
       lastX = e.clientX;
       lastY = e.clientY;
       renderer.domElement.style.cursor = "grabbing";
-      renderer.domElement.setPointerCapture(e.pointerId);
+      updateMouse(e);
     };
 
     const onPointerUp = (e: PointerEvent) => {
       isDragging = false;
       renderer.domElement.style.cursor = "grab";
-      renderer.domElement.releasePointerCapture(e.pointerId);
+      updateMouse(e);
     };
 
     const onPointerMove = (e: PointerEvent) => {
-      // cursor position (HTML card için)
-      const rectCanvas = renderer.domElement.getBoundingClientRect();
-      setCursor({
-        x: e.clientX - rectCanvas.left,
-        y: e.clientY - rectCanvas.top,
-      });
+      updateMouse(e);
 
-      // Drag rotate
       if (isDragging) {
         const dx = e.clientX - lastX;
         const dy = e.clientY - lastY;
@@ -190,24 +163,16 @@ export default function Globe() {
 
         globe.rotation.y += dx * rotateSpeed;
         globe.rotation.x += dy * rotateSpeed;
-
         globe.rotation.x = Math.max(-1.2, Math.min(1.2, globe.rotation.x));
 
-        // Drag bitince “hedef rotasyon” globe’un şu anki hali olsun, snap olmasın
-        targetRot.x = globe.rotation.x;
-        targetRot.y = globe.rotation.y;
+        // Drag sırasında hover/raycast yapmıyoruz (akıcı olsun)
+        return;
       }
 
-      // Hover raycast
-      const rect = renderer.domElement.getBoundingClientRect();
-      const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      const y = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
-      mouseNDC.set(x, y);
-
-      raycaster.setFromCamera(mouseNDC, camera);
+      raycaster.setFromCamera(mouse, camera);
       const hits = raycaster.intersectObjects(pins, false);
 
-      if (hits.length) {
+      if (hits.length > 0) {
         const obj = hits[0].object as THREE.Mesh;
 
         if (hoveredPinRef.current && hoveredPinRef.current !== obj) {
@@ -220,19 +185,20 @@ export default function Globe() {
         const proj = pinToProject.get(obj.id) || null;
         setHovered(proj);
 
-        renderer.domElement.style.cursor = isDragging ? "grabbing" : "pointer";
+        renderer.domElement.style.cursor = "pointer";
       } else {
         if (hoveredPinRef.current) {
           hoveredPinRef.current.scale.set(1, 1, 1);
           hoveredPinRef.current = null;
         }
         setHovered(null);
-        renderer.domElement.style.cursor = isDragging ? "grabbing" : "grab";
+        renderer.domElement.style.cursor = "grab";
       }
     };
 
     const onClick = () => {
-      raycaster.setFromCamera(mouseNDC, camera);
+      // Click anında son mouse konumuyla raycast
+      raycaster.setFromCamera(mouse, camera);
       const hits = raycaster.intersectObjects(pins, false);
       if (!hits.length) return;
 
@@ -240,16 +206,17 @@ export default function Globe() {
       const proj = pinToProject.get(obj.id);
 
       if (proj?.slug) {
-        window.location.href = `/projects/${proj.slug}`;
+        router.push(`/projects/${proj.slug}`); // aynı sekme
       }
     };
 
+    renderer.domElement.style.cursor = "grab";
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("pointerup", onPointerUp);
     renderer.domElement.addEventListener("pointermove", onPointerMove);
     renderer.domElement.addEventListener("click", onClick);
 
-    // Resize
+    // ---------- Resize ----------
     const onResize = () => {
       camera.aspect = mount.clientWidth / mount.clientHeight;
       camera.updateProjectionMatrix();
@@ -257,133 +224,70 @@ export default function Globe() {
     };
     window.addEventListener("resize", onResize);
 
-    // Animation
+    // ---------- Animation ----------
     let raf = 0;
     const animate = () => {
       raf = requestAnimationFrame(animate);
 
-      // pulse time
-      t += 0.03;
-
-      // region hedefini sürekli güncel tut (butona basınca ref değişiyor)
-        //setTargetForRegion(regionRef.current);
-
-      // kullanıcı sürüklemiyorsa:
       if (!isDragging) {
-        // idle dönme (çok yavaş)
         globe.rotation.y += autoRotateSpeed;
-
-        // smooth region rotasyonuna yaklaş (idle dönmeye rağmen yavaşça hedefe yapışır)
-        globe.rotation.x += (targetRot.x - globe.rotation.x) * rotLerp;
-        globe.rotation.y += (targetRot.y - globe.rotation.y) * rotLerp;
-      }
-
-      // pins pulse (hover edilen pin hariç)
-      const pulse = 1 + Math.sin(t) * 0.06;
-      for (const pin of pins) {
-        if (hoveredPinRef.current && pin.id === hoveredPinRef.current.id) continue;
-        pin.scale.set(pulse, pulse, pulse);
       }
 
       renderer.render(scene, camera);
     };
     animate();
 
-    // Cleanup
+    // ---------- Cleanup ----------
     return () => {
       disposed = true;
+
+      window.removeEventListener("resize", onResize);
 
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
       renderer.domElement.removeEventListener("click", onClick);
-      window.removeEventListener("resize", onResize);
 
       cancelAnimationFrame(raf);
 
-      hoveredPinRef.current = null;
-
-      globeGeometry.dispose();
-      globeMaterial.dispose();
-      pinGeometry.dispose();
-
+      // dispose pins materials
       for (const pin of pins) {
         (pin.material as THREE.Material).dispose();
       }
+
+      pinGeometry.dispose();
+      globeGeometry.dispose();
+      globeMaterial.dispose();
+
+      earthTexture.dispose();
 
       renderer.dispose();
       if (renderer.domElement.parentNode === mount) {
         mount.removeChild(renderer.domElement);
       }
     };
+  }, [router]);
+
+  // Hover kartı için UI’ı hafif hafif güncelle (pointermove ile React’i boğma)
+  useEffect(() => {
+    const id = window.setInterval(() => forceTick((v) => v + 1), 40);
+    return () => window.clearInterval(id);
   }, []);
 
-  // hover kartı mouse’u takip etsin: canvas içinde konum
-  const cardLeft = cursor.x + 16;
-const cardTop = cursor.y + 16;
+  const cardLeft = cursorRef.current.x + 16;
+  const cardTop = cursorRef.current.y + 16;
+
   return (
     <div style={{ width: "100vw", height: "100vh", position: "relative" }}>
-      {/* Üst panel */}
       <div
+        ref={mountRef}
         style={{
-          position: "absolute",
-          top: 14,
-          right: 14,
-          zIndex: 10,
-          display: "flex",
-          gap: 8,
-          padding: 8,
-          borderRadius: 14,
-          background: "rgba(255,255,255,0.06)",
-          border: "1px solid rgba(255,255,255,0.10)",
-          backdropFilter: "blur(10px)",
-          color: "white",
+          width: "100%",
+          height: "100%",
+          touchAction: "none", // mobilde sürükleme düzgün olsun
         }}
-      >
-        <button
-          onClick={() => setRegion("all")}
-          style={{
-            padding: "8px 12px",
-            borderRadius: 12,
-            border: "1px solid rgba(255,255,255,0.12)",
-            background: region === "all" ? "rgba(255,255,255,0.14)" : "transparent",
-            color: "white",
-            cursor: "pointer",
-          }}
-        >
-          All
-        </button>
-        <button
-          onClick={() => setRegion("turkiye")}
-          style={{
-            padding: "8px 12px",
-            borderRadius: 12,
-            border: "1px solid rgba(255,255,255,0.12)",
-            background: region === "turkiye" ? "rgba(255,255,255,0.14)" : "transparent",
-            color: "white",
-            cursor: "pointer",
-          }}
-        >
-          Türkiye
-        </button>
-        <button
-          onClick={() => setRegion("gulf")}
-          style={{
-            padding: "8px 12px",
-            borderRadius: 12,
-            border: "1px solid rgba(255,255,255,0.12)",
-            background: region === "gulf" ? "rgba(255,255,255,0.14)" : "transparent",
-            color: "white",
-            cursor: "pointer",
-          }}
-        >
-          Gulf
-        </button>
-      </div>
+      />
 
-      <div ref={mountRef} style={{ width: "100%", height: "100%" }} />
-
-      {/* Hover card */}
       {hovered && (
         <div
           style={{
@@ -395,23 +299,17 @@ const cardTop = cursor.y + 16;
             background: "rgba(255,255,255,0.10)",
             backdropFilter: "blur(10px)",
             color: "white",
-            border: "1px solid rgba(255,255,255,0.14)",
-            maxWidth: 320,
+            border: "1px solid rgba(255,255,255,0.15)",
             pointerEvents: "none",
-            zIndex: 9,
+            maxWidth: 320,
           }}
         >
           <div style={{ fontSize: 14, opacity: 0.9 }}>
             {hovered.city}, {hovered.country}
           </div>
-          <div style={{ fontSize: 18, fontWeight: 900, marginTop: 4 }}>
-            {hovered.name}
-          </div>
-          <div style={{ fontSize: 13, opacity: 0.85, marginTop: 6 }}>
+          <div style={{ fontWeight: 800, marginTop: 4 }}>{hovered.name}</div>
+          <div style={{ fontSize: 12, marginTop: 6, opacity: 0.85 }}>
             Status: {hovered.status}
-          </div>
-          <div style={{ fontSize: 12, opacity: 0.7, marginTop: 8 }}>
-            Click to open project
           </div>
         </div>
       )}
