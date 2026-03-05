@@ -1,8 +1,6 @@
-import dynamic from "next/dynamic";
+"use client";
 
-const Globe = dynamic(() => import("../components/Globe"), {
-  ssr: false,
-});
+import Globe from "../components/Globe";
 
 export default function Page() {
   return <Globe />;
