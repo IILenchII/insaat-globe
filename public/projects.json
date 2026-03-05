@@ -1,0 +1,29 @@
+[
+  {
+    "slug": "istanbul-residences",
+    "name": "Istanbul Residences",
+    "country": "Türkiye",
+    "city": "İstanbul",
+    "lat": 41.0082,
+    "lon": 28.9784,
+    "status": "Ongoing"
+  },
+  {
+    "slug": "doha-school",
+    "name": "Doha School Project",
+    "country": "Qatar",
+    "city": "Doha",
+    "lat": 25.2854,
+    "lon": 51.531,
+    "status": "Completed"
+  },
+  {
+    "slug": "riyadh-villas",
+    "name": "Riyadh Villas",
+    "country": "Saudi Arabia",
+    "city": "Riyadh",
+    "lat": 24.7136,
+    "lon": 46.6753,
+    "status": "Completed"
+  }
+]
