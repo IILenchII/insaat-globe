@@ -319,9 +319,8 @@ export default function Globe() {
   }, []);
 
   // hover kartı mouse’u takip etsin: canvas içinde konum
-  const cardLeft = Math.min(cursor.x + 16, window.innerWidth - 360);
-  const cardTop = Math.min(cursor.y + 16, window.innerHeight - 160);
-
+  const cardLeft = cursor.x + 16;
+const cardTop = cursor.y + 16;
   return (
     <div style={{ width: "100vw", height: "100vh", position: "relative" }}>
       {/* Üst panel */}
