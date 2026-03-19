@@ -11,62 +11,63 @@ type Project = {
   status: string;
 };
 
-export default async function ProjectPage({ params }: { params: any }) {
-  // Next bazen params'ı Promise gibi verebiliyor. await her iki durumda da çalışır.
-  const resolvedParams = await params;
-  const slug: string | undefined = resolvedParams?.slug;
+export default async function ProjectPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
 
-  // projects.json'u server tarafında direkt dosyadan oku
   const filePath = path.join(process.cwd(), "public", "projects.json");
-  const raw = await fs.readFile(filePath, "utf8");
-  const projects: Project[] = JSON.parse(raw);
+  const fileContents = await fs.readFile(filePath, "utf8");
+  const projects: Project[] = JSON.parse(fileContents);
 
-  const project = projects.find((p) => p.slug === slug);
-
-  if (!slug) {
-    return (
-      <main style={{ padding: 24, color: "white" }}>
-        <h1 style={{ fontSize: 32, fontWeight: 800 }}>Project</h1>
-        <p style={{ opacity: 0.8, marginTop: 12 }}>
-          Slug gelmedi. Klasör yolu yanlış olabilir: <code>app/projects/[slug]/page.tsx</code>
-        </p>
-      </main>
-    );
-  }
+  const project = projects.find((item) => item.slug === slug);
 
   if (!project) {
     return (
-      <main style={{ padding: 24, color: "white" }}>
-        <h1 style={{ fontSize: 32, fontWeight: 800 }}>Project not found</h1>
-        <p style={{ opacity: 0.8, marginTop: 12 }}>
-          Slug: <b>{slug}</b>
-        </p>
-        <p style={{ opacity: 0.7, marginTop: 8 }}>
-          projects.json içinde bu slug yok.
-        </p>
+      <main className="min-h-screen bg-[#05070f] px-6 py-20 text-white">
+        <h1 className="text-3xl font-black">Project not found</h1>
+        <p className="mt-4 text-white/70">Slug: {slug}</p>
       </main>
     );
   }
 
   return (
-    <main style={{ padding: 24, color: "white" }}>
-      <div style={{ opacity: 0.8, fontSize: 14 }}>
-        {project.city}, {project.country}
-      </div>
+    <main className="min-h-screen bg-[#05070f] px-6 py-20 text-white">
+      <div className="mx-auto max-w-5xl">
+        <p className="text-sm uppercase tracking-[0.25em] text-[#d8b25f]">
+          {project.city}, {project.country}
+        </p>
 
-      <h1 style={{ fontSize: 36, fontWeight: 900, marginTop: 6 }}>
-        {project.name}
-      </h1>
+        <h1 className="mt-4 text-4xl font-black sm:text-5xl">
+          {project.name}
+        </h1>
 
-      <div style={{ marginTop: 16, lineHeight: 1.9, opacity: 0.9 }}>
-        <div>
-          <b>Status:</b> {project.status}
+        <div className="mt-8 grid gap-4 sm:grid-cols-3">
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+            <p className="text-sm text-white/50">Status</p>
+            <p className="mt-2 text-lg font-semibold">{project.status}</p>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+            <p className="text-sm text-white/50">Latitude</p>
+            <p className="mt-2 text-lg font-semibold">{project.lat}</p>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+            <p className="text-sm text-white/50">Longitude</p>
+            <p className="mt-2 text-lg font-semibold">{project.lon}</p>
+          </div>
         </div>
-        <div>
-          <b>Slug:</b> {project.slug}
-        </div>
-        <div>
-          <b>Coordinates:</b> {project.lat}, {project.lon}
+
+        <div className="mt-10 rounded-[32px] border border-white/10 bg-white/5 p-8">
+          <h2 className="text-2xl font-bold">Project Overview</h2>
+          <p className="mt-4 max-w-3xl leading-8 text-white/70">
+            This page is the project detail shell. We can now expand it with
+            gallery, metrics, scope of work, client information and timeline
+            sections instead of leaving it as a sad empty slug page.
+          </p>
         </div>
       </div>
     </main>

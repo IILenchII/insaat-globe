@@ -57,25 +57,36 @@ export default function Globe() {
     camera.position.z = 14;
 
     // ---------- Renderer ----------
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+    });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     mount.appendChild(renderer.domElement);
 
     // ---------- Lights ----------
-    const dir = new THREE.DirectionalLight(0xffffff, 1.2);
-    dir.position.set(10, 10, 10);
+    const dir = new THREE.DirectionalLight(0xffffff, 1.25);
+    dir.position.set(12, 8, 10);
     scene.add(dir);
 
-    const amb = new THREE.AmbientLight(0xffffff, 0.4);
+    const amb = new THREE.AmbientLight(0xffffff, 0.42);
     scene.add(amb);
+
+    const rim = new THREE.DirectionalLight(0x4da6ff, 0.45);
+    rim.position.set(-10, -4, -8);
+    scene.add(rim);
 
     // ---------- Globe ----------
     const textureLoader = new THREE.TextureLoader();
     const earthTexture = textureLoader.load("/earth.jpg");
 
     const globeGeometry = new THREE.SphereGeometry(radius, 40, 40);
-    const globeMaterial = new THREE.MeshStandardMaterial({ map: earthTexture });
+    const globeMaterial = new THREE.MeshStandardMaterial({
+      map: earthTexture,
+      roughness: 0.95,
+      metalness: 0.05,
+    });
     const globe = new THREE.Mesh(globeGeometry, globeMaterial);
 
     // Türkiye tarafına yakın başlat
@@ -84,16 +95,28 @@ export default function Globe() {
 
     scene.add(globe);
 
+    // ---------- Atmosphere ----------
+    const atmosphereGeometry = new THREE.SphereGeometry(radius * 1.08, 40, 40);
+    const atmosphereMaterial = new THREE.MeshBasicMaterial({
+      color: 0x4da6ff,
+      transparent: true,
+      opacity: 0.12,
+      side: THREE.BackSide,
+      depthWrite: false,
+    });
+
+    const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
+    atmosphere.rotation.copy(globe.rotation);
+    scene.add(atmosphere);
+
     // ---------- Pins ----------
     const pinGeometry = new THREE.SphereGeometry(0.18, 16, 16);
     const pins: THREE.Mesh[] = [];
     const pinToProject = new Map<number, Project>();
 
-    // Hover/click için
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2(999, 999);
 
-    // Drag rotate
     let isDragging = false;
     let lastX = 0;
     let lastY = 0;
@@ -111,10 +134,13 @@ export default function Globe() {
         for (const p of projects) {
           const pos = latLonToVec3(p.lat, p.lon, radius).multiplyScalar(1.02);
 
-          const pinMaterial = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
-          const pin = new THREE.Mesh(pinGeometry, pinMaterial);
+          const pinMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffcc00,
+          });
 
+          const pin = new THREE.Mesh(pinGeometry, pinMaterial);
           pin.position.copy(pos);
+
           globe.add(pin);
 
           pins.push(pin);
@@ -128,6 +154,7 @@ export default function Globe() {
     // ---------- Events ----------
     const updateMouse = (e: PointerEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
+
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
@@ -135,6 +162,10 @@ export default function Globe() {
         x: e.clientX - rect.left,
         y: e.clientY - rect.top,
       };
+    };
+
+    const syncAtmosphereRotation = () => {
+      atmosphere.rotation.copy(globe.rotation);
     };
 
     const onPointerDown = (e: PointerEvent) => {
@@ -165,7 +196,7 @@ export default function Globe() {
         globe.rotation.x += dy * rotateSpeed;
         globe.rotation.x = Math.max(-1.2, Math.min(1.2, globe.rotation.x));
 
-        // Drag sırasında hover/raycast yapmıyoruz (akıcı olsun)
+        syncAtmosphereRotation();
         return;
       }
 
@@ -191,13 +222,13 @@ export default function Globe() {
           hoveredPinRef.current.scale.set(1, 1, 1);
           hoveredPinRef.current = null;
         }
+
         setHovered(null);
         renderer.domElement.style.cursor = "grab";
       }
     };
 
     const onClick = () => {
-      // Click anında son mouse konumuyla raycast
       raycaster.setFromCamera(mouse, camera);
       const hits = raycaster.intersectObjects(pins, false);
       if (!hits.length) return;
@@ -206,7 +237,7 @@ export default function Globe() {
       const proj = pinToProject.get(obj.id);
 
       if (proj?.slug) {
-        router.push(`/projects/${proj.slug}`); // aynı sekme
+        router.push(`/projects/${proj.slug}`);
       }
     };
 
@@ -231,6 +262,7 @@ export default function Globe() {
 
       if (!isDragging) {
         globe.rotation.y += autoRotateSpeed;
+        syncAtmosphereRotation();
       }
 
       renderer.render(scene, camera);
@@ -250,7 +282,6 @@ export default function Globe() {
 
       cancelAnimationFrame(raf);
 
-      // dispose pins materials
       for (const pin of pins) {
         (pin.material as THREE.Material).dispose();
       }
@@ -258,17 +289,19 @@ export default function Globe() {
       pinGeometry.dispose();
       globeGeometry.dispose();
       globeMaterial.dispose();
-
+      atmosphereGeometry.dispose();
+      atmosphereMaterial.dispose();
       earthTexture.dispose();
 
       renderer.dispose();
+
       if (renderer.domElement.parentNode === mount) {
         mount.removeChild(renderer.domElement);
       }
     };
   }, [router]);
 
-  // Hover kartı için UI’ı hafif hafif güncelle (pointermove ile React’i boğma)
+  // Hover kartı için UI’ı hafif güncelle
   useEffect(() => {
     const id = window.setInterval(() => forceTick((v) => v + 1), 40);
     return () => window.clearInterval(id);
@@ -278,13 +311,13 @@ export default function Globe() {
   const cardTop = cursorRef.current.y + 16;
 
   return (
-    <div style={{ width: "100vw", height: "100vh", position: "relative" }}>
+    <div style={{ width: "100%", height: "100%", position: "relative" }}>
       <div
         ref={mountRef}
         style={{
           width: "100%",
           height: "100%",
-          touchAction: "none", // mobilde sürükleme düzgün olsun
+          touchAction: "none",
         }}
       />
 
