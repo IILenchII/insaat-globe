@@ -40,14 +40,13 @@ export default function Globe() {
     if (!mount) return;
 
     let disposed = false;
+    let animationId = 0;
 
-    // ---------- Scene ----------
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x05070f);
 
     const radius = 5;
 
-    // ---------- Camera ----------
     const camera = new THREE.PerspectiveCamera(
       45,
       mount.clientWidth / mount.clientHeight,
@@ -56,30 +55,28 @@ export default function Globe() {
     );
     camera.position.z = 14;
 
-    // ---------- Renderer ----------
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
-      alpha: true,
+      alpha: false,
     });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     mount.appendChild(renderer.domElement);
 
-    // ---------- Lights ----------
-    const dir = new THREE.DirectionalLight(0xffffff, 1.25);
+    const dir = new THREE.DirectionalLight(0xffffff, 1.2);
     dir.position.set(12, 8, 10);
     scene.add(dir);
 
-    const amb = new THREE.AmbientLight(0xffffff, 0.42);
+    const amb = new THREE.AmbientLight(0xffffff, 0.45);
     scene.add(amb);
 
-    const rim = new THREE.DirectionalLight(0x4da6ff, 0.45);
-    rim.position.set(-10, -4, -8);
-    scene.add(rim);
-
-    // ---------- Globe ----------
     const textureLoader = new THREE.TextureLoader();
-    const earthTexture = textureLoader.load("/earth.jpg");
+    const earthTexture = textureLoader.load(
+      "/earth.jpg",
+      undefined,
+      undefined,
+      (err) => console.error("earth texture load error", err)
+    );
 
     const globeGeometry = new THREE.SphereGeometry(radius, 40, 40);
     const globeMaterial = new THREE.MeshStandardMaterial({
@@ -87,29 +84,23 @@ export default function Globe() {
       roughness: 0.95,
       metalness: 0.05,
     });
-    const globe = new THREE.Mesh(globeGeometry, globeMaterial);
 
-    // Türkiye tarafına yakın başlat
+    const globe = new THREE.Mesh(globeGeometry, globeMaterial);
     globe.rotation.y = -0.9;
     globe.rotation.x = 0.2;
-
     scene.add(globe);
 
-    // ---------- Atmosphere ----------
-    const atmosphereGeometry = new THREE.SphereGeometry(radius * 1.08, 40, 40);
+    const atmosphereGeometry = new THREE.SphereGeometry(radius * 1.06, 40, 40);
     const atmosphereMaterial = new THREE.MeshBasicMaterial({
       color: 0x4da6ff,
       transparent: true,
-      opacity: 0.12,
+      opacity: 0.08,
       side: THREE.BackSide,
-      depthWrite: false,
     });
 
     const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
-    atmosphere.rotation.copy(globe.rotation);
-    scene.add(atmosphere);
+    globe.add(atmosphere);
 
-    // ---------- Pins ----------
     const pinGeometry = new THREE.SphereGeometry(0.18, 16, 16);
     const pins: THREE.Mesh[] = [];
     const pinToProject = new Map<number, Project>();
@@ -124,7 +115,6 @@ export default function Globe() {
     const rotateSpeed = 0.005;
     const autoRotateSpeed = 0.0005;
 
-    // Projects fetch
     (async () => {
       try {
         const res = await fetch("/projects.json", { cache: "no-store" });
@@ -134,13 +124,10 @@ export default function Globe() {
         for (const p of projects) {
           const pos = latLonToVec3(p.lat, p.lon, radius).multiplyScalar(1.02);
 
-          const pinMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffcc00,
-          });
-
+          const pinMaterial = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
           const pin = new THREE.Mesh(pinGeometry, pinMaterial);
-          pin.position.copy(pos);
 
+          pin.position.copy(pos);
           globe.add(pin);
 
           pins.push(pin);
@@ -151,7 +138,6 @@ export default function Globe() {
       }
     })();
 
-    // ---------- Events ----------
     const updateMouse = (e: PointerEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
 
@@ -162,10 +148,6 @@ export default function Globe() {
         x: e.clientX - rect.left,
         y: e.clientY - rect.top,
       };
-    };
-
-    const syncAtmosphereRotation = () => {
-      atmosphere.rotation.copy(globe.rotation);
     };
 
     const onPointerDown = (e: PointerEvent) => {
@@ -195,8 +177,6 @@ export default function Globe() {
         globe.rotation.y += dx * rotateSpeed;
         globe.rotation.x += dy * rotateSpeed;
         globe.rotation.x = Math.max(-1.2, Math.min(1.2, globe.rotation.x));
-
-        syncAtmosphereRotation();
         return;
       }
 
@@ -241,35 +221,32 @@ export default function Globe() {
       }
     };
 
+    const onResize = () => {
+      if (!mount) return;
+      camera.aspect = mount.clientWidth / mount.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(mount.clientWidth, mount.clientHeight);
+    };
+
     renderer.domElement.style.cursor = "grab";
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("pointerup", onPointerUp);
     renderer.domElement.addEventListener("pointermove", onPointerMove);
     renderer.domElement.addEventListener("click", onClick);
-
-    // ---------- Resize ----------
-    const onResize = () => {
-      camera.aspect = mount.clientWidth / mount.clientHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(mount.clientWidth, mount.clientHeight);
-    };
     window.addEventListener("resize", onResize);
 
-    // ---------- Animation ----------
-    let raf = 0;
     const animate = () => {
-      raf = requestAnimationFrame(animate);
+      animationId = requestAnimationFrame(animate);
 
       if (!isDragging) {
         globe.rotation.y += autoRotateSpeed;
-        syncAtmosphereRotation();
       }
 
       renderer.render(scene, camera);
     };
+
     animate();
 
-    // ---------- Cleanup ----------
     return () => {
       disposed = true;
 
@@ -280,7 +257,7 @@ export default function Globe() {
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
       renderer.domElement.removeEventListener("click", onClick);
 
-      cancelAnimationFrame(raf);
+      cancelAnimationFrame(animationId);
 
       for (const pin of pins) {
         (pin.material as THREE.Material).dispose();
@@ -301,7 +278,6 @@ export default function Globe() {
     };
   }, [router]);
 
-  // Hover kartı için UI’ı hafif güncelle
   useEffect(() => {
     const id = window.setInterval(() => forceTick((v) => v + 1), 40);
     return () => window.clearInterval(id);
