@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { useRouter } from "next/navigation";
-import { projects, type Project } from "@/lib/projects";
+import { useLanguage } from "@/components/site/LanguageProvider";
+import { getProjectContent, projects, type Project } from "@/lib/projects";
 
 function latLonToVec3(lat: number, lon: number, radius: number) {
   const phi = (90 - lat) * (Math.PI / 180);
@@ -19,6 +20,7 @@ function latLonToVec3(lat: number, lon: number, radius: number) {
 export default function Globe() {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
+  const { locale } = useLanguage();
 
   const hoveredPinRef = useRef<THREE.Mesh | null>(null);
 
@@ -259,6 +261,7 @@ export default function Globe() {
 
   const cardLeft = tooltipPosition.x + 16;
   const cardTop = tooltipPosition.y + 16;
+  const hoveredContent = hovered ? getProjectContent(hovered, locale) : null;
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
@@ -271,7 +274,7 @@ export default function Globe() {
         }}
       />
 
-      {hovered && (
+      {hovered && hoveredContent && (
         <div
           style={{
             position: "absolute",
@@ -289,14 +292,14 @@ export default function Globe() {
           }}
         >
           <div style={{ fontSize: 14, opacity: 0.9 }}>
-            {hovered.city}, {hovered.country}
+            {hoveredContent.city}, {hoveredContent.country}
           </div>
-          <div style={{ fontWeight: 800, marginTop: 4 }}>{hovered.name}</div>
+          <div style={{ fontWeight: 800, marginTop: 4 }}>{hoveredContent.name}</div>
           <div style={{ fontSize: 12, marginTop: 6, opacity: 0.7 }}>
-            {hovered.category}
+            {hoveredContent.category}
           </div>
           <div style={{ fontSize: 12, marginTop: 6, opacity: 0.85 }}>
-            Status: {hovered.status}
+            {locale === "tr" ? "Durum" : "Status"}: {hoveredContent.status}
           </div>
         </div>
       )}

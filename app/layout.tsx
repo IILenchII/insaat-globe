@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { LanguageProvider } from "@/components/site/LanguageProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Insaat Globe",
-  description: "Interactive globe for Insaat project locations",
+  title: "Aydiner Construction",
+  description: "Aydiner Construction bilingual project showcase website",
 };
 
 export default function RootLayout({
@@ -13,7 +14,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <LanguageProvider>{children}</LanguageProvider>
+      </body>
     </html>
   );
 }

@@ -1,43 +1,52 @@
+"use client";
+
+import { useLanguage } from "@/components/site/LanguageProvider";
+import { getSiteCopy } from "@/lib/siteCopy";
+
 export default function Footer() {
+  const { locale } = useLanguage();
+  const copy = getSiteCopy(locale);
+
   return (
     <footer className="py-10">
       <div className="section-container">
         <div className="rounded-[32px] border border-white/10 bg-white/5 p-8">
           <div className="grid gap-10 lg:grid-cols-3">
             <div>
-              <h2 className="text-2xl font-black">Insaat Globe</h2>
+              <h2 className="text-2xl font-black">Aydiner Construction</h2>
 
               <p className="mt-4 text-sm leading-7 text-white/70">
-                Delivering project visibility, execution discipline, and reliable
-                construction outcomes across Turkiye and international markets.
+                {copy.footer.text}
               </p>
             </div>
 
             <div>
-              <p className="text-sm font-semibold text-gold">Contact</p>
+              <p className="text-sm font-semibold text-gold">
+                {copy.footer.contact}
+              </p>
 
               <div className="mt-4 space-y-3 text-sm text-white/70">
-                <p>+90 212 555 01 01</p>
-                <p>hello@insaatglobe.com</p>
-                <p>Istanbul, Turkiye</p>
+                <p>(0216) 309 16 46</p>
+                <p>info@aydinerinsaat.com.tr</p>
+                <p>{locale === "tr" ? "Maltepe, İstanbul" : "Maltepe, Istanbul"}</p>
               </div>
             </div>
 
             <div>
-              <p className="text-sm font-semibold text-gold">Quick Links</p>
+              <p className="text-sm font-semibold text-gold">{copy.footer.links}</p>
 
               <div className="mt-4 space-y-3 text-sm text-white/70">
-                <a href="#home" className="block hover:text-white">Home</a>
-                <a href="#about" className="block hover:text-white">About</a>
-                <a href="#services" className="block hover:text-white">Services</a>
-                <a href="#projects" className="block hover:text-white">Projects</a>
-                <a href="#contact" className="block hover:text-white">Contact</a>
+                {getSiteCopy(locale).nav.links.map((link) => (
+                  <a key={link.href} href={link.href} className="block hover:text-white">
+                    {link.label}
+                  </a>
+                ))}
               </div>
             </div>
           </div>
 
           <div className="mt-10 border-t border-white/10 pt-6 text-center text-sm text-white/50">
-            © 2026 Insaat Globe. All rights reserved.
+            {copy.footer.copyright}
           </div>
         </div>
       </div>

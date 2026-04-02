@@ -1,49 +1,55 @@
-const contactItems = [
-  {
-    label: "Email",
-    value: "hello@insaatglobe.com",
-    href: "mailto:hello@insaatglobe.com",
-  },
-  {
-    label: "Phone",
-    value: "+90 212 555 01 01",
-    href: "tel:+902125550101",
-  },
-  {
-    label: "Office",
-    value: "Istanbul, Turkiye",
-    href: "#home",
-  },
-];
+"use client";
+
+import { useLanguage } from "@/components/site/LanguageProvider";
+import { getSiteCopy } from "@/lib/siteCopy";
 
 export default function ContactSection() {
+  const { locale } = useLanguage();
+  const copy = getSiteCopy(locale);
+  const contactItems = [
+    {
+      label: "Email",
+      value: "info@aydinerinsaat.com.tr",
+      href: "mailto:info@aydinerinsaat.com.tr",
+    },
+    {
+      label: "Phone",
+      value: "(0216) 309 16 46",
+      href: "tel:+902163091646",
+    },
+    {
+      label: copy.contact.officeLabel,
+      value: copy.contact.officeValue,
+      href: "#home",
+    },
+  ];
+
   return (
     <section id="contact" className="border-t border-white/10 py-20">
       <div className="section-container grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-[32px] border border-white/10 bg-[linear-gradient(135deg,rgba(216,178,95,0.22),rgba(11,15,26,0.1))] p-8 shadow-[0_30px_120px_rgba(0,0,0,0.25)] sm:p-10">
           <p className="text-sm font-semibold uppercase tracking-[0.28em] text-gold">
-            Contact
+            {copy.contact.eyebrow}
           </p>
           <h2 className="mt-4 max-w-2xl text-3xl font-black tracking-tight sm:text-5xl">
-            Let&apos;s discuss your next project before complexity turns into cost.
+            {copy.contact.title}
           </h2>
           <p className="mt-6 max-w-2xl text-base leading-8 text-white/72">
-            We support investors, developers, and institutions with structured
-            execution, field discipline, and practical construction leadership.
+            {copy.contact.text}
           </p>
 
           <div className="mt-8 flex flex-wrap gap-4">
             <a
-              href="mailto:hello@insaatglobe.com"
+              href="mailto:info@aydinerinsaat.com.tr"
               className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-ink transition hover:-translate-y-0.5"
             >
-              Start a Conversation
+              {copy.contact.start}
             </a>
             <a
               href="#projects"
               className="rounded-full border border-white/15 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
             >
-              Review Projects
+              {copy.contact.review}
             </a>
           </div>
         </div>
@@ -65,9 +71,7 @@ export default function ContactSection() {
           ))}
 
           <div className="rounded-[28px] border border-dashed border-white/12 bg-black/20 p-6 text-sm leading-7 text-white/65">
-            Available for residential, education, hospitality, and mixed-use
-            developments across Turkiye, the Gulf region, and selected
-            international markets.
+            {copy.contact.availability}
           </div>
         </div>
       </div>
