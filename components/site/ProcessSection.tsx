@@ -23,21 +23,19 @@ const steps = [
 
 export default function ProcessSection() {
   return (
-    <section className="border-b border-white/10 py-20">
+    <section id="process" className="border-b border-white/10 py-20">
       <div className="section-container">
-
         <div className="text-center">
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-gold">
-            Our Process
+            Process
           </p>
 
           <h2 className="mt-4 text-3xl font-black sm:text-4xl">
-            From planning to delivery
+            A construction workflow that stays readable from planning to handover.
           </h2>
         </div>
 
         <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-5">
-
           {steps.map((step, index) => (
             <div
               key={step.title}
@@ -56,9 +54,7 @@ export default function ProcessSection() {
               </p>
             </div>
           ))}
-
         </div>
-
       </div>
     </section>
   );

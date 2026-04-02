@@ -1,8 +1,8 @@
 const stats = [
-  { value: "25+", label: "Years of Experience" },
-  { value: "248+", label: "Completed Projects" },
-  { value: "15+", label: "Winning Awards" },
-  { value: "400+", label: "Satisfied Customers" },
+  { value: "25+", label: "Years of Delivery Experience" },
+  { value: "3", label: "Cross-Border References" },
+  { value: "230k+", label: "Managed Construction Area (m2)" },
+  { value: "100%", label: "Project-Focused Coordination" },
 ];
 
 export default function StatsSection() {

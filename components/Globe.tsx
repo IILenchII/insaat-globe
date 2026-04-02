@@ -3,16 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { useRouter } from "next/navigation";
-
-type Project = {
-  slug: string;
-  name: string;
-  country: string;
-  city: string;
-  lat: number;
-  lon: number;
-  status: string;
-};
+import { projects, type Project } from "@/lib/projects";
 
 function latLonToVec3(lat: number, lon: number, radius: number) {
   const phi = (90 - lat) * (Math.PI / 180);
@@ -30,16 +21,14 @@ export default function Globe() {
   const router = useRouter();
 
   const hoveredPinRef = useRef<THREE.Mesh | null>(null);
-  const cursorRef = useRef({ x: 0, y: 0 });
 
   const [hovered, setHovered] = useState<Project | null>(null);
-  const [, forceTick] = useState(0);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
 
-    let disposed = false;
     let animationId = 0;
 
     const scene = new THREE.Scene();
@@ -115,28 +104,20 @@ export default function Globe() {
     const rotateSpeed = 0.005;
     const autoRotateSpeed = 0.0005;
 
-    (async () => {
-      try {
-        const res = await fetch("/projects.json", { cache: "no-store" });
-        const projects: Project[] = await res.json();
-        if (disposed) return;
+    for (const project of projects) {
+      const pos = latLonToVec3(project.lat, project.lon, radius).multiplyScalar(
+        1.02
+      );
 
-        for (const p of projects) {
-          const pos = latLonToVec3(p.lat, p.lon, radius).multiplyScalar(1.02);
+      const pinMaterial = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+      const pin = new THREE.Mesh(pinGeometry, pinMaterial);
 
-          const pinMaterial = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
-          const pin = new THREE.Mesh(pinGeometry, pinMaterial);
+      pin.position.copy(pos);
+      globe.add(pin);
 
-          pin.position.copy(pos);
-          globe.add(pin);
-
-          pins.push(pin);
-          pinToProject.set(pin.id, p);
-        }
-      } catch (e) {
-        console.error("projects.json load error:", e);
-      }
-    })();
+      pins.push(pin);
+      pinToProject.set(pin.id, project);
+    }
 
     const updateMouse = (e: PointerEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
@@ -144,10 +125,10 @@ export default function Globe() {
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
-      cursorRef.current = {
+      setTooltipPosition({
         x: e.clientX - rect.left,
         y: e.clientY - rect.top,
-      };
+      });
     };
 
     const onPointerDown = (e: PointerEvent) => {
@@ -248,8 +229,6 @@ export default function Globe() {
     animate();
 
     return () => {
-      disposed = true;
-
       window.removeEventListener("resize", onResize);
 
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
@@ -278,13 +257,8 @@ export default function Globe() {
     };
   }, [router]);
 
-  useEffect(() => {
-    const id = window.setInterval(() => forceTick((v) => v + 1), 40);
-    return () => window.clearInterval(id);
-  }, []);
-
-  const cardLeft = cursorRef.current.x + 16;
-  const cardTop = cursorRef.current.y + 16;
+  const cardLeft = tooltipPosition.x + 16;
+  const cardTop = tooltipPosition.y + 16;
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
@@ -311,12 +285,16 @@ export default function Globe() {
             border: "1px solid rgba(255,255,255,0.15)",
             pointerEvents: "none",
             maxWidth: 320,
+            boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
           }}
         >
           <div style={{ fontSize: 14, opacity: 0.9 }}>
             {hovered.city}, {hovered.country}
           </div>
           <div style={{ fontWeight: 800, marginTop: 4 }}>{hovered.name}</div>
+          <div style={{ fontSize: 12, marginTop: 6, opacity: 0.7 }}>
+            {hovered.category}
+          </div>
           <div style={{ fontSize: 12, marginTop: 6, opacity: 0.85 }}>
             Status: {hovered.status}
           </div>
