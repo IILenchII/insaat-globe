@@ -4,12 +4,14 @@ import RegionalMap from "@/components/RegionalMap";
 import Link from "next/link";
 import Image from "next/image";
 import { useLanguage } from "@/components/site/LanguageProvider";
-import { getProjectContent, projects } from "@/lib/projects";
+import { getProjectContent } from "@/lib/projects";
 import { getSiteCopy } from "@/lib/siteCopy";
+import { useProjectsData } from "@/lib/useProjectsData";
 
 export default function FeaturedProjectsSection() {
   const { locale } = useLanguage();
   const copy = getSiteCopy(locale);
+  const { projects } = useProjectsData();
 
   return (
     <section id="projects" className="border-b border-white/10 py-20">

@@ -1,33 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { useDeferredValue, useMemo, useState } from "react";
+import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { brandAssets } from "@/lib/siteCopy";
 import { useLanguage } from "@/components/site/LanguageProvider";
 import { getLocalizedText, type LocalizedText } from "@/lib/i18n";
-import { projects, type Project } from "@/lib/projects";
+import type { Project } from "@/lib/projects";
 
-type MetricDraft = {
-  label: LocalizedText;
-  value: LocalizedText;
-};
-
-type ProjectDraft = {
-  slug: string;
-  name: LocalizedText;
-  country: LocalizedText;
-  city: LocalizedText;
-  lat: number;
-  lon: number;
-  status: LocalizedText;
-  category: LocalizedText;
-  year: string;
-  summary: LocalizedText;
-  scope: LocalizedText[];
-  metrics: MetricDraft[];
-  images: string[];
-  primaryImage: string;
-};
+type ProjectDraft = Project;
 
 function createDraft(project: Project): ProjectDraft {
   return {
@@ -45,6 +25,52 @@ function createDraft(project: Project): ProjectDraft {
     })),
     images: [...project.images],
   };
+}
+
+function createDraftMap(projects: Project[]) {
+  return Object.fromEntries(projects.map((project) => [project.slug, createDraft(project)]));
+}
+
+function createEmptyProject() {
+  const id = Date.now().toString().slice(-8);
+
+  return createDraft({
+    slug: `new-project-${id}`,
+    name: { tr: `Yeni Proje ${id}`, en: `New Project ${id}` },
+    country: { tr: "Türkiye", en: "Turkey" },
+    city: { tr: "İstanbul", en: "Istanbul" },
+    lat: 41.0082,
+    lon: 28.9784,
+    status: { tr: "Devam Ediyor", en: "Ongoing" },
+    category: { tr: "Konut Projesi", en: "Residential Project" },
+    year: new Date().getFullYear().toString(),
+    summary: {
+      tr: "Bu proje admin panelinden oluşturulan yeni bir taslak kaydıdır.",
+      en: "This project is a new draft record created from the admin panel.",
+    },
+    scope: [
+      {
+        tr: "Kapsam maddesi buraya yazılır",
+        en: "Scope item is written here",
+      },
+    ],
+    metrics: [
+      {
+        label: { tr: "İnşaat Alanı", en: "Construction Area" },
+        value: { tr: "TBD", en: "TBD" },
+      },
+      {
+        label: { tr: "İş Süresi", en: "Job Duration" },
+        value: { tr: "TBD", en: "TBD" },
+      },
+      {
+        label: { tr: "İş Kapsamı", en: "Scope of Work" },
+        value: { tr: "TBD", en: "TBD" },
+      },
+    ],
+    images: [brandAssets.heroPrimary],
+    primaryImage: brandAssets.heroPrimary,
+  });
 }
 
 function StatCard({
@@ -74,16 +100,49 @@ function StatCard({
 
 export default function AdminDashboard() {
   const { locale } = useLanguage();
+  const [authState, setAuthState] = useState<"loading" | "guest" | "authenticated">(
+    "loading"
+  );
+  const [username, setUsername] = useState("admin");
+  const [password, setPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [isAuthPending, setIsAuthPending] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [selectedSlug, setSelectedSlug] = useState(projects[0]?.slug ?? "");
-  const [drafts, setDrafts] = useState<Record<string, ProjectDraft>>(() =>
-    Object.fromEntries(projects.map((project) => [project.slug, createDraft(project)]))
-  );
+  const [selectedSlug, setSelectedSlug] = useState("");
+  const [drafts, setDrafts] = useState<Record<string, ProjectDraft>>({});
+  const [initialDrafts, setInitialDrafts] = useState<Record<string, ProjectDraft>>({});
+  const [saveFeedback, setSaveFeedback] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const deferredSearch = useDeferredValue(search);
   const allDrafts = useMemo(() => Object.values(drafts), [drafts]);
+
+  async function loadProjects() {
+    const response = await fetch("/api/admin/projects", { cache: "no-store" });
+
+    if (response.status === 401) {
+      setAuthState("guest");
+      return;
+    }
+
+    const data = (await response.json()) as { projects: Project[] };
+    const draftMap = createDraftMap(data.projects);
+
+    startTransition(() => {
+      setDrafts(draftMap);
+      setInitialDrafts(draftMap);
+      setSelectedSlug((current) =>
+        current && draftMap[current] ? current : data.projects[0]?.slug ?? ""
+      );
+      setAuthState("authenticated");
+    });
+  }
+
+  useEffect(() => {
+    void loadProjects();
+  }, []);
 
   const filteredProjects = useMemo(() => {
     const normalizedSearch = deferredSearch.trim().toLocaleLowerCase("tr");
@@ -148,6 +207,14 @@ export default function AdminDashboard() {
 
     return { ongoing, completed, countries, categoriesCount };
   }, [allDrafts]);
+
+  const isDirty = useMemo(() => {
+    if (!selectedProject) {
+      return false;
+    }
+
+    return JSON.stringify(selectedProject) !== JSON.stringify(initialDrafts[selectedProject.slug]);
+  }, [initialDrafts, selectedProject]);
 
   function updateLocalizedField(
     slug: string,
@@ -218,7 +285,7 @@ export default function AdminDashboard() {
       return;
     }
 
-    const original = projects.find((project) => project.slug === selectedProject.slug);
+    const original = initialDrafts[selectedProject.slug];
 
     if (!original) {
       return;
@@ -230,10 +297,251 @@ export default function AdminDashboard() {
     }));
   }
 
+  async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsAuthPending(true);
+    setLoginError("");
+
+    try {
+      const response = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ username, password }),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json()) as { error?: string };
+        setLoginError(data.error ?? "Giriş başarısız oldu.");
+        return;
+      }
+
+      setPassword("");
+      await loadProjects();
+    } finally {
+      setIsAuthPending(false);
+    }
+  }
+
+  async function handleLogout() {
+    setIsAuthPending(true);
+
+    try {
+      await fetch("/api/admin/logout", { method: "POST" });
+      setDrafts({});
+      setInitialDrafts({});
+      setSelectedSlug("");
+      setAuthState("guest");
+    } finally {
+      setIsAuthPending(false);
+    }
+  }
+
+  async function saveSelectedProject() {
+    if (!selectedProject) {
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveFeedback("");
+
+    try {
+      const response = await fetch(`/api/admin/projects/${selectedProject.slug}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ project: selectedProject }),
+      });
+
+      if (response.status === 401) {
+        setAuthState("guest");
+        return;
+      }
+
+      if (!response.ok) {
+        const data = (await response.json()) as { error?: string };
+        setSaveFeedback(data.error ?? "Kaydetme sırasında bir hata oluştu.");
+        return;
+      }
+
+      const data = (await response.json()) as { projects: Project[] };
+      const draftMap = createDraftMap(data.projects);
+      setDrafts(draftMap);
+      setInitialDrafts(draftMap);
+      setSaveFeedback(locale === "tr" ? "Proje kaydedildi." : "Project saved.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function addProject() {
+    const nextProject = createEmptyProject();
+    setIsSaving(true);
+    setSaveFeedback("");
+
+    try {
+      const response = await fetch("/api/admin/projects", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ project: nextProject }),
+      });
+
+      if (response.status === 401) {
+        setAuthState("guest");
+        return;
+      }
+
+      if (!response.ok) {
+        const data = (await response.json()) as { error?: string };
+        setSaveFeedback(data.error ?? "Yeni proje oluşturulamadı.");
+        return;
+      }
+
+      const data = (await response.json()) as { projects: Project[]; project: Project };
+      const draftMap = createDraftMap(data.projects);
+      setDrafts(draftMap);
+      setInitialDrafts(draftMap);
+      setSelectedSlug(data.project.slug);
+      setSaveFeedback(locale === "tr" ? "Yeni proje oluşturuldu." : "New project created.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function deleteSelectedProject() {
+    if (!selectedProject) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      locale === "tr"
+        ? `${getLocalizedText(selectedProject.name, locale)} projesini silmek istiyor musun?`
+        : `Do you want to delete ${getLocalizedText(selectedProject.name, locale)}?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveFeedback("");
+
+    try {
+      const response = await fetch(`/api/admin/projects/${selectedProject.slug}`, {
+        method: "DELETE",
+      });
+
+      if (response.status === 401) {
+        setAuthState("guest");
+        return;
+      }
+
+      if (!response.ok) {
+        const data = (await response.json()) as { error?: string };
+        setSaveFeedback(data.error ?? "Proje silinemedi.");
+        return;
+      }
+
+      const data = (await response.json()) as { projects: Project[] };
+      const draftMap = createDraftMap(data.projects);
+      setDrafts(draftMap);
+      setInitialDrafts(draftMap);
+      setSelectedSlug(data.projects[0]?.slug ?? "");
+      setSaveFeedback(locale === "tr" ? "Proje silindi." : "Project deleted.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   const scopeTr = selectedProject?.scope.map((item) => item.tr).join("\n") ?? "";
   const scopeEn = selectedProject?.scope.map((item) => item.en).join("\n") ?? "";
   const imagesValue = selectedProject?.images.join("\n") ?? "";
   const draftPreview = selectedProject ? JSON.stringify(selectedProject, null, 2) : "";
+
+  if (authState === "loading") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,#fffbf5_0%,#f2eadc_100%)] px-6">
+        <div className="rounded-[28px] border border-[#1d365c]/10 bg-white/86 px-8 py-6 text-sm text-[#17283b]/66 shadow-[0_20px_60px_rgba(23,40,59,0.08)]">
+          {locale === "tr" ? "Admin paneli yükleniyor..." : "Loading admin panel..."}
+        </div>
+      </div>
+    );
+  }
+
+  if (authState === "guest") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,#fffbf5_0%,#f2eadc_100%)] px-4 py-10 text-[#17283b]">
+        <div className="w-full max-w-[560px] rounded-[36px] border border-[#1d365c]/10 bg-[rgba(255,255,255,0.88)] p-6 shadow-[0_30px_90px_rgba(23,40,59,0.08)] sm:p-8">
+          <div className="relative h-16 w-[180px]">
+            <Image
+              src={brandAssets.logo}
+              alt="Aydiner Construction"
+              fill
+              sizes="180px"
+              className="object-contain object-left"
+              priority
+            />
+          </div>
+
+          <p className="mt-5 text-xs font-semibold uppercase tracking-[0.28em] text-[#bb8c39]">
+            {locale === "tr" ? "Güvenli Giriş" : "Secure Access"}
+          </p>
+          <h1 className="mt-3 font-['Iowan_Old_Style','Palatino_Linotype','Book_Antiqua',Georgia,serif] text-4xl font-bold tracking-[-0.03em] text-[#13263f]">
+            {locale === "tr" ? "Admin Paneli" : "Admin Panel"}
+          </h1>
+          <p className="mt-4 text-sm leading-7 text-[#17283b]/66">
+            {locale === "tr"
+              ? "Bu panel proje içeriklerini yönetmek için kullanılır. Varsayılan demo giriş bilgisi `admin / aydiner123` olarak ayarlanmıştır; istersen daha sonra environment variable ile değiştirebiliriz."
+              : "This panel is used to manage project content. The default demo credential is set to `admin / aydiner123`; we can move it to environment variables later."}
+          </p>
+
+          <form onSubmit={handleLogin} className="mt-6 grid gap-4">
+            <label className="grid gap-2 text-sm font-medium">
+              {locale === "tr" ? "Kullanıcı Adı" : "Username"}
+              <input
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                className="rounded-[18px] border border-[#1d365c]/10 bg-white px-4 py-3 font-normal outline-none transition focus:border-[#bb8c39]/45"
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium">
+              {locale === "tr" ? "Şifre" : "Password"}
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="rounded-[18px] border border-[#1d365c]/10 bg-white px-4 py-3 font-normal outline-none transition focus:border-[#bb8c39]/45"
+              />
+            </label>
+
+            {loginError ? (
+              <div className="rounded-[18px] border border-[#d95a5a]/20 bg-[#fff1f1] px-4 py-3 text-sm text-[#9e3131]">
+                {loginError}
+              </div>
+            ) : null}
+
+            <button
+              type="submit"
+              disabled={isAuthPending}
+              className="mt-2 inline-flex items-center justify-center rounded-full border border-[#f1c450]/70 bg-[linear-gradient(180deg,#f4cf71_0%,#e8bb4f_100%)] px-5 py-3 text-sm font-semibold text-[#112640] transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isAuthPending
+                ? locale === "tr"
+                  ? "Giriş yapılıyor..."
+                  : "Signing in..."
+                : locale === "tr"
+                  ? "Panele Gir"
+                  : "Enter Panel"}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#fffbf5_0%,#f2eadc_100%)] px-4 py-6 text-[#17283b] sm:px-6 lg:px-8">
@@ -262,22 +570,32 @@ export default function AdminDashboard() {
                 </h1>
                 <p className="mt-2 max-w-3xl text-sm leading-7 text-[#17283b]/66">
                   {locale === "tr"
-                    ? "Bu ilk sürüm, proje içeriğini düzenlemek ve portföyü gözden geçirmek için hazırlanmış bir operasyon panelidir. Form alanları şu an arayüz taslağı olarak çalışır; backend bağlandığında aynı yapı veri giriş paneline dönebilir."
-                    : "This first version is an operations panel prepared to review and edit portfolio content. The form fields currently work as an interface draft and can turn into a full data-entry panel once a backend is connected."}
+                    ? "Bu sürümde giriş ekranı, proje ekle/sil aksiyonları ve dosyaya yazan gerçek kayıt API’si aktif. Kayıtlar `data/projects.json` içine yazılır ve public site yeniden yüklendiğinde yeni içerikleri okur."
+                    : "This version ships with a login screen, add/delete actions, and a real save API writing to disk. Records are written into `data/projects.json`, and the public site reads the latest content on refresh."}
                 </p>
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:w-[420px]">
-              <StatCard
-                label={locale === "tr" ? "Toplam Proje" : "Total Projects"}
-                value={String(allDrafts.length)}
-                tone="gold"
-              />
-              <StatCard
-                label={locale === "tr" ? "Aktif Taslak" : "Active Drafts"}
-                value={String(filteredProjects.length)}
-              />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="grid gap-3 sm:grid-cols-2 xl:w-[420px]">
+                <StatCard
+                  label={locale === "tr" ? "Toplam Proje" : "Total Projects"}
+                  value={String(allDrafts.length)}
+                  tone="gold"
+                />
+                <StatCard
+                  label={locale === "tr" ? "Aktif Filtre" : "Filtered"}
+                  value={String(filteredProjects.length)}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={isAuthPending}
+                className="rounded-full border border-[#1d365c]/10 bg-white px-4 py-3 text-sm font-semibold text-[#17283b] transition hover:border-[#bb8c39]/30 hover:bg-[#fffaf2]"
+              >
+                {locale === "tr" ? "Çıkış Yap" : "Log Out"}
+              </button>
             </div>
           </div>
         </header>
@@ -312,9 +630,14 @@ export default function AdminDashboard() {
                   {locale === "tr" ? "İçerik Yönetimi" : "Content Management"}
                 </h2>
               </div>
-              <div className="rounded-full border border-[#1d365c]/10 bg-[#fff7ea] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#17283b]/60">
-                {filteredProjects.length}
-              </div>
+              <button
+                type="button"
+                onClick={addProject}
+                disabled={isSaving}
+                className="rounded-full border border-[#bb8c39]/24 bg-[#fff7ea] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-[#13263f] transition hover:bg-[#ffefcf]"
+              >
+                {locale === "tr" ? "Yeni Proje" : "New Project"}
+              </button>
             </div>
 
             <div className="mt-5 grid gap-3">
@@ -429,6 +752,28 @@ export default function AdminDashboard() {
                         >
                           {locale === "tr" ? "Taslağı Sıfırla" : "Reset Draft"}
                         </button>
+                        <button
+                          type="button"
+                          onClick={saveSelectedProject}
+                          disabled={isSaving || !isDirty}
+                          className="rounded-full border border-[#f1c450]/70 bg-[linear-gradient(180deg,#f4cf71_0%,#e8bb4f_100%)] px-4 py-2 text-sm font-semibold text-[#112640] transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isSaving
+                            ? locale === "tr"
+                              ? "Kaydediliyor..."
+                              : "Saving..."
+                            : locale === "tr"
+                              ? "Projeyi Kaydet"
+                              : "Save Project"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={deleteSelectedProject}
+                          disabled={isSaving}
+                          className="rounded-full border border-[#d95a5a]/24 bg-[#fff1f1] px-4 py-2 text-sm font-semibold text-[#a23b3b] transition hover:bg-[#ffe3e3]"
+                        >
+                          {locale === "tr" ? "Projeyi Sil" : "Delete Project"}
+                        </button>
                         <a
                           href={`/projects/${selectedProject.slug}`}
                           className="rounded-full border border-[#bb8c39]/30 bg-[#fff7e6] px-4 py-2 text-sm font-semibold text-[#13263f] transition hover:bg-[#fff0cb]"
@@ -437,6 +782,12 @@ export default function AdminDashboard() {
                         </a>
                       </div>
                     </div>
+
+                    {saveFeedback ? (
+                      <div className="mt-4 rounded-[18px] border border-[#1d365c]/10 bg-[#fffaf2] px-4 py-3 text-sm text-[#17283b]/72">
+                        {saveFeedback}
+                      </div>
+                    ) : null}
 
                     <div className="mt-6 grid gap-4 sm:grid-cols-2">
                       <label className="grid gap-2 text-sm font-medium text-[#17283b]">
@@ -450,7 +801,7 @@ export default function AdminDashboard() {
                         />
                       </label>
                       <label className="grid gap-2 text-sm font-medium text-[#17283b]">
-                        {locale === "tr" ? "Project Name (EN)" : "Project Name (EN)"}
+                        Project Name (EN)
                         <input
                           value={selectedProject.name.en}
                           onChange={(event) =>
@@ -470,7 +821,7 @@ export default function AdminDashboard() {
                         />
                       </label>
                       <label className="grid gap-2 text-sm font-medium text-[#17283b]">
-                        {locale === "tr" ? "City (EN)" : "City (EN)"}
+                        City (EN)
                         <input
                           value={selectedProject.city.en}
                           onChange={(event) =>
@@ -490,7 +841,7 @@ export default function AdminDashboard() {
                         />
                       </label>
                       <label className="grid gap-2 text-sm font-medium text-[#17283b]">
-                        {locale === "tr" ? "Country (EN)" : "Country (EN)"}
+                        Country (EN)
                         <input
                           value={selectedProject.country.en}
                           onChange={(event) =>
@@ -562,7 +913,7 @@ export default function AdminDashboard() {
                         />
                       </label>
                       <label className="grid gap-2 text-sm font-medium text-[#17283b]">
-                        {locale === "tr" ? "Summary (EN)" : "Summary (EN)"}
+                        Summary (EN)
                         <textarea
                           value={selectedProject.summary.en}
                           onChange={(event) =>
@@ -590,7 +941,7 @@ export default function AdminDashboard() {
                         />
                       </label>
                       <label className="grid gap-2 text-sm font-medium text-[#17283b]">
-                        {locale === "tr" ? "Scope Items (EN)" : "Scope Items (EN)"}
+                        Scope Items (EN)
                         <textarea
                           value={scopeEn}
                           onChange={(event) => updateScope("en", event.target.value)}
@@ -634,6 +985,15 @@ export default function AdminDashboard() {
                         <span className="rounded-full border border-[#1d365c]/10 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#17283b]/64">
                           {selectedProject.year}
                         </span>
+                        <span className="rounded-full border border-[#1d365c]/10 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#17283b]/64">
+                          {isDirty
+                            ? locale === "tr"
+                              ? "Kaydedilmedi"
+                              : "Unsaved"
+                            : locale === "tr"
+                              ? "Güncel"
+                              : "Synced"}
+                        </span>
                       </div>
                     </div>
 
@@ -668,12 +1028,12 @@ export default function AdminDashboard() {
                       </p>
                       <h3 className="mt-2 text-xl font-black text-[#13263f]">
                         {locale === "tr"
-                          ? "Seçilen projenin taslak çıktısı"
-                          : "Draft output of the selected project"}
+                          ? "Seçilen projenin kayıt çıktısı"
+                          : "Saved output of the selected project"}
                       </h3>
                     </div>
                     <div className="rounded-full border border-[#1d365c]/10 bg-[#fff7ea] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#17283b]/60">
-                      {locale === "tr" ? "Backend hazır" : "Backend ready"}
+                      data/projects.json
                     </div>
                   </div>
                   <pre className="mt-5 overflow-x-auto rounded-[24px] bg-[#13263f] p-5 text-xs leading-6 text-[#f7f2e8]">

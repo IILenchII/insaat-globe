@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import ProjectDetailClient from "@/components/site/ProjectDetailClient";
-import { getProjectBySlug } from "@/lib/projects";
+import { readStoredProjectBySlug } from "@/lib/projectStore";
 
 export default async function ProjectPage({
   params,
@@ -8,7 +8,7 @@ export default async function ProjectPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const project = getProjectBySlug(slug);
+  const project = await readStoredProjectBySlug(slug);
 
   if (!project) {
     notFound();

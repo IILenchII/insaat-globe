@@ -6,7 +6,8 @@ import Image from "next/image";
 import { MapContainer, Marker, TileLayer, Tooltip, useMap } from "react-leaflet";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/components/site/LanguageProvider";
-import { getProjectContent, projects } from "@/lib/projects";
+import { getProjectContent } from "@/lib/projects";
+import { useProjectsData } from "@/lib/useProjectsData";
 
 function createProjectIcon(isHovered: boolean) {
   return L.divIcon({
@@ -49,6 +50,7 @@ export default function RegionalMapInner() {
   const router = useRouter();
   const { locale } = useLanguage();
   const [hoveredSlug, setHoveredSlug] = useState<string | null>(null);
+  const { projects } = useProjectsData();
 
   const projectItems = useMemo(
     () =>
@@ -56,7 +58,7 @@ export default function RegionalMapInner() {
         project,
         content: getProjectContent(project, locale),
       })),
-    [locale]
+    [locale, projects]
   );
 
   const positionedItems = useMemo(() => {
