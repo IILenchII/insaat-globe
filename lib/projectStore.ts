@@ -14,11 +14,14 @@ export async function readStoredProjects(): Promise<Project[]> {
     const file = await readFile(PROJECTS_FILE, "utf8");
     const parsed = JSON.parse(file) as Project[];
 
-    if (Array.isArray(parsed) && parsed.length > 0) {
+    if (Array.isArray(parsed)) {
       return sortProjects(parsed);
     }
   } catch {
-    return sortProjects(seedProjects);
+    await mkdir(DATA_DIRECTORY, { recursive: true });
+    const fallbackProjects = sortProjects(seedProjects);
+    await writeFile(PROJECTS_FILE, `${JSON.stringify(fallbackProjects, null, 2)}\n`, "utf8");
+    return fallbackProjects;
   }
 
   return sortProjects(seedProjects);

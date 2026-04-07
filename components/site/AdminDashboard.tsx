@@ -380,6 +380,9 @@ export default function AdminDashboard() {
     const nextProject = createEmptyProject();
     setIsSaving(true);
     setSaveFeedback("");
+    setSearch("");
+    setStatusFilter("all");
+    setCategoryFilter("all");
 
     try {
       const response = await fetch("/api/admin/projects", {
@@ -406,7 +409,11 @@ export default function AdminDashboard() {
       setDrafts(draftMap);
       setInitialDrafts(draftMap);
       setSelectedSlug(data.project.slug);
-      setSaveFeedback(locale === "tr" ? "Yeni proje oluşturuldu." : "New project created.");
+      setSaveFeedback(
+        locale === "tr"
+          ? "Yeni proje oluşturuldu ve kaydedildi. Sol listede en üstte görebilirsin."
+          : "New project created and saved. You can find it at the top of the left list."
+      );
     } finally {
       setIsSaving(false);
     }
