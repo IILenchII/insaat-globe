@@ -1,5 +1,15 @@
 import type { Locale } from "@/lib/i18n";
 
+export const brandAssets = {
+  logo: "https://aydinernakliyatinsaat.com/wp-content/uploads/2025/06/LOGO-removebg-preview.png",
+  heroPrimary:
+    "https://aydinernakliyatinsaat.com/wp-content/uploads/2025/06/construction-1.jpg",
+  heroSecondary:
+    "https://aydinernakliyatinsaat.com/wp-content/uploads/2025/06/construction-site-with-building-cranes.jpg",
+  aboutFeature:
+    "https://aydinernakliyatinsaat.com/wp-content/uploads/2025/06/modern-curved-glass-building-exterior.jpg",
+} as const;
+
 export const siteCopy = {
   nav: {
     brand: "AYDINER CONSTRUCTION",
@@ -84,16 +94,16 @@ export const siteCopy = {
   },
   stats: {
     tr: [
-      { value: "20+", label: "Sektör Deneyimi" },
-      { value: "TSE", label: "Kalite Standartları" },
-      { value: "ISO", label: "Uygunluk ve Süreç Disiplini" },
-      { value: "Turnkey", label: "Projeden Teslime Hizmet" },
+      { value: "25+", label: "Profesyonel Ekip" },
+      { value: "20+", label: "Yıllık Deneyim" },
+      { value: "59", label: "Referans Proje" },
+      { value: "100%", label: "Müşteri Odağı" },
     ],
     en: [
-      { value: "20+", label: "Years of Experience" },
-      { value: "TSE", label: "Quality Standards" },
-      { value: "ISO", label: "Compliance and Process Discipline" },
-      { value: "Turnkey", label: "From Project to Delivery" },
+      { value: "25+", label: "Professionals in Our Team" },
+      { value: "20+", label: "Annual Experience" },
+      { value: "59", label: "Completed References" },
+      { value: "100%", label: "Customer Focus" },
     ],
   },
   about: {
@@ -274,8 +284,8 @@ export const siteCopy = {
       en: "We build dreams in a project",
     },
     mapHint: {
-      tr: "Bu proje lokasyonlarını üst bölümdeki interaktif küre üzerinden de inceleyebilirsiniz.",
-      en: "You can also explore these project locations through the interactive globe above.",
+      tr: "Referans projeleri harita üzerinde gerçek lokasyonlarına yakın yerleşimlerle inceleyin.",
+      en: "Explore the reference projects on the map with placements aligned to their real locations.",
     },
   },
   faq: {

@@ -17,11 +17,16 @@ function latLonToVec3(lat: number, lon: number, radius: number) {
   return new THREE.Vector3(x, y, z);
 }
 
-export default function Globe() {
+export default function Globe({
+  lockRegion = false,
+}: {
+  lockRegion?: boolean;
+}) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
   const { locale } = useLanguage();
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const cameraDistanceRef = useRef(11.5);
 
   const hoveredPinRef = useRef<THREE.Object3D | null>(null);
 
@@ -34,14 +39,14 @@ export default function Globe() {
     if (!mount) return;
 
     let animationId = 0;
-    let cameraDistance = isExpanded ? 8.4 : 11.5;
+    cameraDistanceRef.current = isExpanded ? 8.4 : 11.5;
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf5eee2);
 
     const radius = 5;
-    const focusRotationY = -2.28;
-    const focusRotationX = 0.38;
+    const focusRotationY = -2.2;
+    const focusRotationX = 0.34;
     const minRotationY = -2.7;
     const maxRotationY = -1.85;
     const minRotationX = 0.05;
@@ -53,7 +58,7 @@ export default function Globe() {
       0.1,
       1000
     );
-    camera.position.z = cameraDistance;
+    camera.position.z = cameraDistanceRef.current;
     cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({
@@ -82,8 +87,8 @@ export default function Globe() {
     const globeGeometry = new THREE.SphereGeometry(radius, 40, 40);
     const globeMaterial = new THREE.MeshStandardMaterial({
       map: earthTexture,
-      roughness: 0.95,
-      metalness: 0.05,
+      roughness: 0.88,
+      metalness: 0.04,
     });
 
     const globe = new THREE.Mesh(globeGeometry, globeMaterial);
@@ -102,12 +107,9 @@ export default function Globe() {
     const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
     globe.add(atmosphere);
 
-    const markerHeadGeometry = new THREE.OctahedronGeometry(0.16, 0);
-    const markerStemGeometry = new THREE.CylinderGeometry(0.018, 0.03, 0.46, 10);
-    const markerRingGeometry = new THREE.TorusGeometry(0.18, 0.018, 10, 28);
-    const pulseRingGeometry = new THREE.RingGeometry(0.2, 0.34, 40);
+    const markerHeadGeometry = new THREE.SphereGeometry(0.028, 14, 14);
+    const markerStemGeometry = new THREE.CylinderGeometry(0.0045, 0.0045, 0.24, 8);
     const interactivePins: THREE.Mesh[] = [];
-    const pulseRings: THREE.Mesh[] = [];
     const pinToProject = new Map<number, Project>();
 
     const raycaster = new THREE.Raycaster();
@@ -118,7 +120,7 @@ export default function Globe() {
     let lastY = 0;
 
     const rotateSpeed = 0.005;
-    const autoRotateSpeed = 0.00018;
+    const autoRotateSpeed = lockRegion ? 0 : 0.00018;
     const minCameraDistance = 7.4;
     const maxCameraDistance = 13.4;
 
@@ -131,69 +133,37 @@ export default function Globe() {
       markerGroup.position.copy(anchor);
       markerGroup.lookAt(anchor.clone().add(normal));
 
-      const ringMaterial = new THREE.MeshBasicMaterial({
-        color: 0x7ce7ff,
-        transparent: true,
-        opacity: 0.95,
-      });
-      const ring = new THREE.Mesh(markerRingGeometry, ringMaterial);
-      ring.rotation.x = Math.PI / 2;
-      ring.position.z = 0.03;
-
-      const pulseMaterial = new THREE.MeshBasicMaterial({
-        color: 0x54c8ff,
-        transparent: true,
-        opacity: 0.34,
-        side: THREE.DoubleSide,
-      });
-      const pulseRing = new THREE.Mesh(pulseRingGeometry, pulseMaterial);
-      pulseRing.position.z = 0.01;
-
       const stemMaterial = new THREE.MeshStandardMaterial({
-        color: 0x8be9ff,
-        emissive: 0x1b6f86,
-        emissiveIntensity: 0.65,
-        metalness: 0.2,
-        roughness: 0.28,
+        color: 0xd62d2d,
+        emissive: 0x8a1111,
+        emissiveIntensity: 0.18,
+        metalness: 0.08,
+        roughness: 0.45,
       });
       const stem = new THREE.Mesh(markerStemGeometry, stemMaterial);
-      stem.position.z = 0.24;
+      stem.rotation.x = Math.PI / 2;
+      stem.position.z = 0.12;
 
       const headMaterial = new THREE.MeshStandardMaterial({
-        color: 0xff8f5d,
-        emissive: 0xff5a1f,
-        emissiveIntensity: 1.1,
-        metalness: 0.12,
-        roughness: 0.18,
+        color: 0xe03c3c,
+        emissive: 0xa11717,
+        emissiveIntensity: 0.24,
+        metalness: 0.06,
+        roughness: 0.35,
       });
       const head = new THREE.Mesh(markerHeadGeometry, headMaterial);
-      head.position.z = 0.55;
-      head.rotation.z = Math.PI / 4;
+      head.position.z = 0.245;
 
-      const tipGlowMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffd27a,
-        transparent: true,
-        opacity: 0.9,
-      });
-      const tipGlow = new THREE.Mesh(new THREE.SphereGeometry(0.06, 14, 14), tipGlowMaterial);
-      tipGlow.position.z = 0.68;
-
-      markerGroup.add(pulseRing);
-      markerGroup.add(ring);
       markerGroup.add(stem);
       markerGroup.add(head);
-      markerGroup.add(tipGlow);
       globe.add(markerGroup);
 
-      ring.userData.markerGroup = markerGroup;
       head.userData.markerGroup = markerGroup;
-      pulseRing.userData.markerGroup = markerGroup;
+      stem.userData.markerGroup = markerGroup;
 
-      interactivePins.push(ring, head, pulseRing);
-      pulseRings.push(pulseRing);
-      pinToProject.set(ring.id, project);
+      interactivePins.push(stem, head);
+      pinToProject.set(stem.id, project);
       pinToProject.set(head.id, project);
-      pinToProject.set(pulseRing.id, project);
     }
 
     const updateMouse = (e: PointerEvent) => {
@@ -209,14 +179,19 @@ export default function Globe() {
     };
 
     const applyZoom = (delta: number) => {
-      cameraDistance = Math.max(
+      cameraDistanceRef.current = Math.max(
         minCameraDistance,
-        Math.min(maxCameraDistance, cameraDistance + delta)
+        Math.min(maxCameraDistance, cameraDistanceRef.current + delta)
       );
-      camera.position.z = cameraDistance;
+      camera.position.z = cameraDistanceRef.current;
     };
 
     const onPointerDown = (e: PointerEvent) => {
+      if (lockRegion) {
+        updateMouse(e);
+        return;
+      }
+
       isDragging = true;
       lastX = e.clientX;
       lastY = e.clientY;
@@ -232,6 +207,38 @@ export default function Globe() {
 
     const onPointerMove = (e: PointerEvent) => {
       updateMouse(e);
+
+      if (lockRegion) {
+        raycaster.setFromCamera(mouse, camera);
+        const hits = raycaster.intersectObjects(interactivePins, false);
+
+        if (hits.length > 0) {
+          const target = hits[0].object as THREE.Mesh;
+          const markerGroup = (target.userData.markerGroup as THREE.Group) || target;
+
+          if (hoveredPinRef.current && hoveredPinRef.current !== markerGroup) {
+            hoveredPinRef.current.scale.set(1, 1, 1);
+          }
+
+          markerGroup.scale.set(1.28, 1.28, 1.28);
+          hoveredPinRef.current = markerGroup;
+
+          const proj = pinToProject.get(target.id) || null;
+          setHovered(proj);
+
+          renderer.domElement.style.cursor = "pointer";
+        } else {
+          if (hoveredPinRef.current) {
+            hoveredPinRef.current.scale.set(1, 1, 1);
+            hoveredPinRef.current = null;
+          }
+
+          setHovered(null);
+          renderer.domElement.style.cursor = "default";
+        }
+
+        return;
+      }
 
       if (isDragging) {
         const dx = e.clientX - lastX;
@@ -301,7 +308,7 @@ export default function Globe() {
       renderer.setSize(mount.clientWidth, mount.clientHeight);
     };
 
-    renderer.domElement.style.cursor = "grab";
+    renderer.domElement.style.cursor = lockRegion ? "default" : "grab";
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("pointerup", onPointerUp);
     renderer.domElement.addEventListener("pointermove", onPointerMove);
@@ -315,13 +322,6 @@ export default function Globe() {
       if (!isDragging) {
         globe.rotation.y += autoRotateSpeed;
         globe.rotation.y = Math.max(minRotationY, Math.min(maxRotationY, globe.rotation.y));
-      }
-
-      const pulse = 0.95 + Math.sin(Date.now() * 0.004) * 0.18;
-      const pulseOpacity = 0.16 + (pulse - 0.95) * 0.9;
-      for (const ring of pulseRings) {
-        ring.scale.setScalar(pulse);
-        (ring.material as THREE.MeshBasicMaterial).opacity = pulseOpacity;
       }
 
       renderer.render(scene, camera);
@@ -355,8 +355,6 @@ export default function Globe() {
 
       markerHeadGeometry.dispose();
       markerStemGeometry.dispose();
-      markerRingGeometry.dispose();
-      pulseRingGeometry.dispose();
       globeGeometry.dispose();
       globeMaterial.dispose();
       atmosphereGeometry.dispose();
@@ -370,11 +368,29 @@ export default function Globe() {
         mount.removeChild(renderer.domElement);
       }
     };
-  }, [isExpanded, router]);
+  }, [isExpanded, lockRegion, router]);
 
   const cardLeft = tooltipPosition.x + 16;
   const cardTop = tooltipPosition.y + 16;
   const hoveredContent = hovered ? getProjectContent(hovered, locale) : null;
+
+  const handleZoomIn = () => {
+    if (!cameraRef.current) return;
+    cameraDistanceRef.current = Math.max(7.4, cameraDistanceRef.current - 0.55);
+    cameraRef.current.position.z = cameraDistanceRef.current;
+  };
+
+  const handleZoomOut = () => {
+    if (!cameraRef.current) return;
+    cameraDistanceRef.current = Math.min(13.4, cameraDistanceRef.current + 0.55);
+    cameraRef.current.position.z = cameraDistanceRef.current;
+  };
+
+  const handleResetView = () => {
+    if (!cameraRef.current) return;
+    cameraDistanceRef.current = isExpanded ? 8.4 : 11.5;
+    cameraRef.current.position.z = cameraDistanceRef.current;
+  };
 
   return (
     <div
@@ -431,11 +447,7 @@ export default function Globe() {
       >
         <button
           type="button"
-          onClick={() => {
-            if (cameraRef.current) {
-              cameraRef.current.position.z = Math.max(7.4, cameraRef.current.position.z - 0.55);
-            }
-          }}
+          onClick={handleZoomIn}
           style={{
             borderRadius: 999,
             border: "1px solid rgba(23,40,59,0.12)",
@@ -452,11 +464,7 @@ export default function Globe() {
         </button>
         <button
           type="button"
-          onClick={() => {
-            if (cameraRef.current) {
-              cameraRef.current.position.z = Math.min(13.4, cameraRef.current.position.z + 0.55);
-            }
-          }}
+          onClick={handleZoomOut}
           style={{
             borderRadius: 999,
             border: "1px solid rgba(23,40,59,0.12)",
@@ -470,6 +478,24 @@ export default function Globe() {
           aria-label="Zoom out"
         >
           -
+        </button>
+        <button
+          type="button"
+          onClick={handleResetView}
+          style={{
+            borderRadius: 999,
+            border: "1px solid rgba(23,40,59,0.12)",
+            background: "rgba(255,255,255,0.9)",
+            color: "#17283b",
+            minWidth: 52,
+            height: 40,
+            fontSize: 12,
+            padding: "0 14px",
+            cursor: "pointer",
+          }}
+          aria-label="Reset globe view"
+        >
+          Reset
         </button>
         <button
           type="button"
