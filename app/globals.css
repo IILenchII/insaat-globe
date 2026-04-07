@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --background: #05070f;
-  --foreground: #f4f6f8;
-  --gold: #d8b25f;
-  --ink: #05070f;
+  --background: #f7f2e8;
+  --foreground: #17283b;
+  --gold: #bb8c39;
+  --ink: #17283b;
 }
 
 @theme inline {
@@ -30,9 +30,9 @@ body {
   font-family: var(--font-sans);
   min-height: 100vh;
   background-image:
-    radial-gradient(circle at top left, rgba(216, 178, 95, 0.08), transparent 22%),
-    radial-gradient(circle at 80% 10%, rgba(34, 70, 111, 0.18), transparent 24%),
-    linear-gradient(180deg, #06101a 0%, #05070f 100%);
+    radial-gradient(circle at top left, rgba(187, 140, 57, 0.14), transparent 22%),
+    radial-gradient(circle at 80% 10%, rgba(111, 146, 176, 0.18), transparent 24%),
+    linear-gradient(180deg, #fffaf2 0%, #f3ede2 100%);
 }
 
 a,
@@ -59,4 +59,50 @@ button {
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.05);
   box-shadow: 0 24px 90px rgba(0, 0, 0, 0.18);
+}
+
+.theme-light .border-white\/10 {
+  border-color: rgba(23, 40, 59, 0.12) !important;
+}
+
+.theme-light .border-white\/12 {
+  border-color: rgba(23, 40, 59, 0.14) !important;
+}
+
+.theme-light .border-white\/15 {
+  border-color: rgba(23, 40, 59, 0.16) !important;
+}
+
+.theme-light .bg-white\/5,
+.theme-light .bg-white\/6 {
+  background-color: rgba(255, 255, 255, 0.72) !important;
+}
+
+.theme-light .bg-black\/20,
+.theme-light .bg-black\/25,
+.theme-light .bg-black\/30,
+.theme-light .bg-black\/35 {
+  background-color: rgba(255, 255, 255, 0.72) !important;
+}
+
+.theme-light .text-white {
+  color: #17283b !important;
+}
+
+.theme-light .text-white\/80 {
+  color: rgba(23, 40, 59, 0.82) !important;
+}
+
+.theme-light .text-white\/72,
+.theme-light .text-white\/70 {
+  color: rgba(23, 40, 59, 0.72) !important;
+}
+
+.theme-light .text-white\/68,
+.theme-light .text-white\/65,
+.theme-light .text-white\/60,
+.theme-light .text-white\/55,
+.theme-light .text-white\/50,
+.theme-light .text-white\/45 {
+  color: rgba(23, 40, 59, 0.58) !important;
 }

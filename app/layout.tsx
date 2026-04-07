@@ -14,7 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>
+      <body className="theme-light">
         <LanguageProvider>{children}</LanguageProvider>
       </body>
     </html>
